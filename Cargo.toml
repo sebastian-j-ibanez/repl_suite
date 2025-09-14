@@ -2,6 +2,8 @@
 name = "term_manager"
 version = "0.1.0"
 edition = "2024"
+description = "Wrapper around libc::termios for fine-grained stdin/stdout control."
+license = "MIT"
 
 [dependencies]
 libc = "0.2.175"
