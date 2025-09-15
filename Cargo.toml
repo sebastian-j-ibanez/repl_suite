@@ -7,3 +7,4 @@ license = "MIT"
 
 [dependencies]
 libc = "0.2.175"
+nix = "0.30.1"
