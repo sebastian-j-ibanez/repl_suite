@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     io::{self, Read, Stdin, Stdout, Write},
     os::fd::{AsRawFd, RawFd},
     u8,
@@ -20,6 +21,15 @@ impl From<io::Error> for Error {
 impl From<nix::errno::Errno> for Error {
     fn from(e: nix::errno::Errno) -> Self {
         Error::Errno(e)
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Io(e) => write!(f, "IO error: {}", e),
+            Error::Errno(e) => write!(f, "UNIX error: {}", e),
+        }
     }
 }
 
