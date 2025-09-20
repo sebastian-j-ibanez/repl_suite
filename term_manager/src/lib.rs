@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Sebastian Ibanez
+// Author: Sebastian Ibanez
+// Created: 2025-09-14
 use std::{
     fmt::Display,
     io::{self, Read, Stdin, Stdout, Write},

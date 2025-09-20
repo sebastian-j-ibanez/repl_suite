@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Sebastian Ibanez
+// Author: Sebastian Ibanez
+// Created: 2025-09-17
 use std::fmt::Display;
 
 use term_manager::TermManager;
