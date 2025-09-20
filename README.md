@@ -1,11 +1,15 @@
-# term_manager
-![Crates.io Version](https://img.shields.io/crates/v/term_manager)
-![Crates.io Total Downloads](https://img.shields.io/crates/d/term_manager?color=blue)
-![GitHub License](https://img.shields.io/github/license/sebastian-j-ibanez/term_manager)
+# repl_suite
+[![term_manager](https://img.shields.io/badge/term_manager-v0.1.2-orange?style=flat)](https://github.com/sebastian-j-ibanez/repl_suite/tree/main/term_manager)
+[![repl_lib](https://img.shields.io/badge/repl_lib-v0.1.0-orange?style=flat)](https://github.com/sebastian-j-ibanez/repl_suite/tree/main/repl_lib)
+[![repl_demo](https://img.shields.io/badge/repl_lib-v0.1.0-orange?style=flat)](https://github.com/sebastian-j-ibanez/repl_suite/tree/main/repl_demo)
+![GitHub License](https://img.shields.io/github/license/sebastian-j-ibanez/repl_suite)
 
-Wrapper around `libc::termios` for fine-grained stdin/stdout control.
+A Rust workspace for building interactive REPL applications.
 
-### Example usage.
+### Crates
 
-An demo REPL (built using `term_manager`) can be found here: [rust-cli-demo](https://github.com/sebastian-j-ibanez/rust-cli-demo.git).
+**term_manager**: Wrapper around `libc::termios` for fine-grained stdin/stdout control.
 
+**repl_lib**: Library for creating REPL interpreters with `term_manager`.
+
+**repl_demo**: Demo REPL built using `term_manager` and `repl_lib`.

@@ -1,0 +1,10 @@
+[package]
+name = "term_manager"
+version = "0.1.2"
+edition = "2024"
+description = "Wrapper around libc::termios for fine-grained stdin/stdout control."
+license = "MIT"
+
+[dependencies]
+libc = "0.2.175"
+nix = "0.30.1"

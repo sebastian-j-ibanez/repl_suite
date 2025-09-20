@@ -1,0 +1,9 @@
+[package]
+name = "repl_lib"
+version = "0.1.0"
+edition = "2024"
+description = "Library for creating REPL interpreters."
+license = "MIT"
+
+[dependencies]
+term_manager = "0.1.2"

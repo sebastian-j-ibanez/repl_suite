@@ -39,26 +39,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "repl_demo"
+name = "rust-cli-demo"
 version = "0.1.0"
 dependencies = [
  "libc",
- "term_manager 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "repl_lib"
-version = "0.1.0"
-dependencies = [
- "term_manager 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "term_manager"
-version = "0.1.2"
-dependencies = [
- "libc",
- "nix",
+ "term_manager",
 ]
 
 [[package]]
