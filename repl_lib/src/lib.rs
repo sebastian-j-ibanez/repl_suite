@@ -1,14 +1,22 @@
 // Copyright (c) 2025 Sebastian Ibanez
 // Author: Sebastian Ibanez
 // Created: 2025-09-17
+
 use std::fmt::Display;
 
 use term_manager::TermManager;
 
+/// Result type alias for repl_lib operations.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Function type for processing input lines.
 pub type ProcessFunc = fn(String) -> Result<String>;
+
+/// Function type for determining if a line is complete.
 pub type TerminatedLineFunc = fn(String) -> bool;
 
+/// Error type for REPL operations.
+#[derive(Debug)]
 pub enum Error {
     InitFail(String),
     IoFlush(String),
@@ -29,17 +37,20 @@ impl Display for Error {
     }
 }
 
+/// Internal state for REPL operation flow.
 enum ReplState {
     Continue,
     Break,
 }
 
+/// Type of input being processed by the REPL.
 pub enum InputType {
     Normal,
     Escape,
     EscapeSequence,
 }
 
+/// Interactive Read-Eval-Print Loop implementation.
 pub struct Repl {
     tmanager: TermManager,
     process_line: ProcessFunc,
@@ -54,6 +65,13 @@ pub struct Repl {
 }
 
 impl Repl {
+    /// Create a new REPL instance.
+    ///
+    /// ### Arguments
+    ///
+    /// * `prompt` - The prompt string to display
+    /// * `process_line` - Function to process completed lines
+    /// * `line_is_finished` - Function to determine if a line is complete
     pub fn new(
         prompt: String,
         process_line: ProcessFunc,
@@ -84,6 +102,7 @@ impl Repl {
         })
     }
 
+    /// Read and process input until a complete line is entered.
     pub fn get_line(&mut self) -> Result<String> {
         loop {
             let mut buf = [0u8; 1];
@@ -133,6 +152,7 @@ impl Repl {
         Ok(self.line.clone())
     }
 
+    /// Handle ANSI escape sequences.
     fn handle_ansi_escape_sequence(&mut self, c: u8) -> Result<ReplState> {
         match c {
             // Get previous line from history.
@@ -205,6 +225,7 @@ impl Repl {
         Ok(ReplState::Continue)
     }
 
+    /// Handle normal input characters including printable chars and control sequences.
     fn handle_normal_input(&mut self, c: u8) -> Result<ReplState> {
         match c {
             // Escape character.

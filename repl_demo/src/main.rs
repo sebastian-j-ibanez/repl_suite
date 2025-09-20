@@ -1,6 +1,7 @@
 // Copyright (c) 2025 Sebastian Ibanez
 // Author: Sebastian Ibanez
 // Created: 2025-08-29
+
 use term_manager::TermManager;
 
 enum InputState {

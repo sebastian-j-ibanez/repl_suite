@@ -2,6 +2,7 @@
 name = "repl_demo"
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/sebastian-j-ibanez/repl_suite"
 
 [dependencies]
 libc = "0.2.175"
