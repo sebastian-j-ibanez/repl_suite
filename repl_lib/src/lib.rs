@@ -62,6 +62,8 @@ pub struct Repl {
     escape_buffer: Vec<u8>,
     input_state: InputType,
     prompt: String,
+    banner: String,
+    welcome_msg: String,
 }
 
 impl Repl {
@@ -74,6 +76,8 @@ impl Repl {
     /// * `line_is_finished` - Function to determine if a line is complete
     pub fn new(
         prompt: String,
+        banner: String,
+        welcome_msg: String,
         process_line: ProcessFunc,
         line_is_finished: TerminatedLineFunc,
     ) -> Result<Self> {
@@ -99,11 +103,26 @@ impl Repl {
             escape_buffer,
             input_state,
             prompt,
+            banner,
+            welcome_msg,
         })
+    }
+
+    /// Print REPL welcome banner and msg.
+    pub fn print_welcome(&mut self) {
+        println!("{}\n{}", self.banner, self.welcome_msg);
+    }
+
+    /// Print REPL prompt.
+    pub fn print_prompt(&mut self) {
+        print!("{}", self.prompt);
     }
 
     /// Read and process input until a complete line is entered.
     pub fn get_line(&mut self) -> Result<String> {
+        if let Err(_) = self.tmanager.flush() {
+            return Err(Error::IoFlush(format!("unable to flush stdout")));
+        };
         loop {
             let mut buf = [0u8; 1];
             match self.tmanager.read(&mut buf) {
@@ -237,6 +256,7 @@ impl Repl {
             // New line.
             b'\n' | b'\r' => {
                 // Process line and print result if line is finished.
+                // Otherwise, print empty line and continue.
                 if (self.line_is_finished)(self.line.clone()) {
                     let processed_line = match (self.process_line)(self.line.clone()) {
                         Ok(s) => s,
@@ -246,10 +266,12 @@ impl Repl {
                         }
                     };
                     println!("\r\n{}", processed_line);
+                    self.lines.push(self.line.clone());
+                    self.lines_pos += 1;
+                    self.line.clear();
+                } else {
+                    print!("\n\n");
                 }
-                self.lines.push(self.line.clone());
-                self.lines_pos += 1;
-                self.line.clear();
                 self.cursor_pos = 0;
                 print!("{}", self.prompt);
                 if let Err(e) = self.tmanager.flush() {

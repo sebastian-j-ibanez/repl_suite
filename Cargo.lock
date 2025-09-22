@@ -43,7 +43,7 @@ name = "repl_demo"
 version = "0.1.0"
 dependencies = [
  "libc",
- "term_manager 0.1.2",
+ "repl_lib",
 ]
 
 [[package]]
