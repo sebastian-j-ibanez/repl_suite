@@ -22,9 +22,9 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "libc"
-version = "0.2.175"
+version = "0.2.176"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a82ae493e598baaea5209805c49bbf2ea7de956d50d7da0da1164f9c6d28543"
+checksum = "58f929b4d672ea937a23a1ab494143d968337a5f47e56d0815df1e0890ddf174"
 
 [[package]]
 name = "nix"
@@ -43,30 +43,28 @@ name = "repl_demo"
 version = "0.1.0"
 dependencies = [
  "libc",
- "repl_lib 0.1.1",
-]
-
-[[package]]
-name = "repl_lib"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97d6af969514762e888828a49de045dd58f1e8ad66f42d9ad69fb11df359bc2f"
-dependencies = [
- "term_manager 0.1.2",
+ "repl_lib 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "repl_lib"
 version = "0.1.2"
 dependencies = [
- "term_manager 0.1.2",
+ "term_manager 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "repl_lib"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "465dd186cfdff1af36031bbf2befaa106fc3e81afd0f540a8a8f44f48786c5dc"
+dependencies = [
+ "term_manager 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "term_manager"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f276e0358773b44f3864b04d365d7a28442f95d8d044fbed22d0ba495bad9873"
+version = "0.1.3"
 dependencies = [
  "libc",
  "nix",
@@ -75,6 +73,8 @@ dependencies = [
 [[package]]
 name = "term_manager"
 version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab2c2e167fa654fb9a74c710d954da32818feeb88e57159ed32d388892c365a8"
 dependencies = [
  "libc",
  "nix",

@@ -2,19 +2,36 @@
 // Author: Sebastian Ibanez
 // Created: 2025-08-29
 
-use repl_lib::Repl;
+use repl_lib::{ProcessFunc, Repl, TerminatedLineFunc};
 
 /// Return line.
-fn process_line(line: String) -> repl_lib::Result<String> {
-    Ok(line)
+fn process_line() -> ProcessFunc {
+    Box::new(|line: String| Ok(line))
 }
 
 /// Return `true` if line is larger than 0.
-fn line_is_finished(line: String) -> bool {
-    match line.len() {
-        b if b > 0 => true,
-        _ => false,
-    }
+fn line_is_finished() -> TerminatedLineFunc {
+    Box::new(|line: String| {
+        let expression = line.trim();
+        let mut open_paren = 0;
+        let mut close_paren = 0;
+
+        for e in expression.chars() {
+            match e {
+                '(' => open_paren += 1,
+                ')' => close_paren += 1,
+                _ => {}
+            }
+        }
+
+        let _ = expression.chars().map(|e| match e {
+            '(' => open_paren += 1,
+            ')' => close_paren += 1,
+            _ => {}
+        });
+
+        (open_paren == close_paren) || (!expression.starts_with('(') && !expression.ends_with(')'))
+    })
 }
 
 fn main() -> Result<(), ()> {
@@ -29,7 +46,13 @@ fn main() -> Result<(), ()> {
     "#,
     );
     let welcome_msg = String::from("Welcome to the REPL demo!");
-    let mut repl = match Repl::new(prompt, banner, welcome_msg, process_line, line_is_finished) {
+    let mut repl = match Repl::new(
+        prompt,
+        banner,
+        welcome_msg,
+        process_line(),
+        line_is_finished(),
+    ) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("unable to init REPL: {}", e);

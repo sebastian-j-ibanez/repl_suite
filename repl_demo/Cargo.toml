@@ -6,4 +6,4 @@ repository = "https://github.com/sebastian-j-ibanez/repl_suite"
 
 [dependencies]
 libc = "0.2.175"
-repl_lib = "0.1.1"
+repl_lib = "0.1.2"
