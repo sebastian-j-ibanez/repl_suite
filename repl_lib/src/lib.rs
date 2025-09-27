@@ -10,10 +10,10 @@ use term_manager::TermManager;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Function type for processing input lines.
-pub type ProcessFunc = fn(String) -> Result<String>;
+pub type ProcessFunc = Box<dyn FnMut(String) -> Result<String>>;
 
 /// Function type for determining if a line is complete.
-pub type TerminatedLineFunc = fn(String) -> bool;
+pub type TerminatedLineFunc = Box<dyn FnMut(String) -> bool>;
 
 /// Error type for REPL operations.
 #[derive(Debug)]
@@ -73,13 +73,13 @@ impl Repl {
     ///
     /// * `prompt` - The prompt string to display
     /// * `process_line` - Function to process completed lines
-    /// * `line_is_finished` - Function to determine if a line is complete
+    /// * `line_is_finished` - Function to determine if a line is terminated
     pub fn new(
         prompt: String,
         banner: String,
         welcome_msg: String,
         process_line: ProcessFunc,
-        line_is_finished: TerminatedLineFunc,
+        line_is_terminated: TerminatedLineFunc,
     ) -> Result<Self> {
         let tmanager = TermManager::new().or_else(|e| {
             let msg = format!("failed to initialized Repl: {}", e);
@@ -95,7 +95,7 @@ impl Repl {
         Ok(Repl {
             tmanager,
             process_line,
-            line_is_finished,
+            line_is_finished: line_is_terminated,
             line,
             cursor_pos,
             lines,
