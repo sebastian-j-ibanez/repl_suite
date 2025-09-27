@@ -2,7 +2,7 @@
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/sebastian-j-ibanez/repl_suite/cargo.yml)
 ![GitHub License](https://img.shields.io/github/license/sebastian-j-ibanez/repl_suite?color=orange)
 
-A Rust workspace for building interactive REPL applications.
+Collection of Rust crates to build REPLs.
 
 ### Crates
 
