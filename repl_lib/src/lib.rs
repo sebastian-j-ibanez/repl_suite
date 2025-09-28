@@ -38,29 +38,85 @@ impl Display for Error {
 }
 
 /// Internal state for REPL operation flow.
+#[derive(Copy, Clone, Debug)]
 enum ReplState {
     Continue,
     Break,
 }
 
 /// Type of input being processed by the REPL.
+#[derive(Copy, Clone, Debug)]
 pub enum InputType {
     Normal,
     Escape,
     EscapeSequence,
 }
 
+/// Represents a single line of input with cursor position.
+#[derive(Clone, Debug)]
+pub struct Line {
+    text: String,
+    cursor_pos: usize,
+}
+
+impl Line {
+    /// Creates a new empty line.
+    pub fn new() -> Self {
+        Self {
+            text: String::new(),
+            cursor_pos: 0,
+        }
+    }
+
+    /// Inserts a character at the current cursor position.
+    pub fn insert_char(&mut self, c: char) {
+        self.text.insert(self.cursor_pos, c);
+        self.cursor_pos += 1;
+    }
+
+    /// Removes the character before the cursor.
+    pub fn backspace(&mut self) {
+        if self.cursor_pos > 0 {
+            self.cursor_pos -= 1;
+            self.text.remove(self.cursor_pos);
+        }
+    }
+
+    /// Moves cursor one position to the left.
+    pub fn move_left(&mut self) {
+        if self.cursor_pos > 0 {
+            self.cursor_pos -= 1;
+        }
+    }
+
+    /// Moves cursor one position to the right.
+    pub fn move_right(&mut self) {
+        if self.cursor_pos < self.text.len() {
+            self.cursor_pos += 1;
+        }
+    }
+
+    /// Returns the text content of the line.
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+}
+
+impl Display for Line {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.text)
+    }
+}
+
 /// Interactive Read-Eval-Print Loop implementation.
 pub struct Repl {
     tmanager: TermManager,
-    process_line: ProcessFunc,
-    line_is_finished: TerminatedLineFunc,
-    line: String,
-    lines: Vec<String>,
-    cursor_pos: usize,
-    lines_pos: usize,
+    lines: Vec<Line>,
+    current_line: usize,
     escape_buffer: Vec<u8>,
     input_state: InputType,
+    process_line: ProcessFunc,
+    line_is_terminated: TerminatedLineFunc,
     prompt: String,
     banner: String,
     welcome_msg: String,
@@ -72,6 +128,8 @@ impl Repl {
     /// ### Arguments
     ///
     /// * `prompt` - The prompt string to display
+    /// * `banner` - Startup banner to display.
+    /// * `welcome_msg` - Welcome message to display.
     /// * `process_line` - Function to process completed lines
     /// * `line_is_finished` - Function to determine if a line is terminated
     pub fn new(
@@ -85,286 +143,203 @@ impl Repl {
             let msg = format!("failed to initialized Repl: {}", e);
             Err(Error::InitFail(msg))
         })?;
-        let line = String::new();
-        let cursor_pos: usize = 0;
-        let lines: Vec<String> = Vec::new();
-        let lines_pos: usize = 0;
+        let mut lines: Vec<Line> = Vec::new();
+        lines.push(Line::new());
+        let current_line = 0;
         let escape_buffer = Vec::new();
         let input_state = InputType::Normal;
 
         Ok(Repl {
             tmanager,
-            process_line,
-            line_is_finished: line_is_terminated,
-            line,
-            cursor_pos,
             lines,
-            lines_pos,
+            current_line,
             escape_buffer,
             input_state,
+            process_line,
+            line_is_terminated,
             prompt,
             banner,
             welcome_msg,
         })
     }
 
-    /// Print REPL welcome banner and msg.
+    /// Prints the welcome banner and message.
     pub fn print_welcome(&mut self) {
         println!("{}\n{}", self.banner, self.welcome_msg);
     }
 
-    /// Print REPL prompt.
+    /// Prints the REPL prompt.
     pub fn print_prompt(&mut self) {
         print!("{}", self.prompt);
     }
 
+    /// Gets a line by index from the history.
+    pub fn get_line(&self, index: usize) -> Option<&Line> {
+        self.lines.get(index)
+    }
+
     /// Read and process input until a complete line is entered.
-    pub fn get_line(&mut self) -> Result<String> {
-        if let Err(_) = self.tmanager.flush() {
-            return Err(Error::IoFlush(format!("unable to flush stdout")));
-        };
+    pub fn process_input(&mut self) -> Result<String> {
+        self.tmanager
+            .flush()
+            .map_err(|_| Error::IoFlush("unable to flush stdout".into()))?;
+
+        let mut output: Option<String> = None;
+
         loop {
             let mut buf = [0u8; 1];
-            match self.tmanager.read(&mut buf) {
-                Ok(n) => n,
-                Err(e) => {
-                    eprintln!("Error reading from tmanager.stdin: {:?}", e);
-                    return Err(Error::IoFlush(format!("unable to flush stdout")));
-                }
-            };
+            self.tmanager
+                .read(&mut buf)
+                .map_err(|e| Error::IoRead(format!("error reading from stdin: {}", e)))?;
             let c = buf[0];
 
-            match self.input_state {
+            self.input_state = match self.input_state {
                 InputType::Escape => {
                     self.escape_buffer.push(c);
-                    match c {
-                        b'[' => {
-                            self.input_state = InputType::EscapeSequence;
-                        }
-                        _ => {
-                            self.input_state = InputType::Normal;
-                            self.escape_buffer.clear();
-                        }
+                    if c == b'[' {
+                        InputType::EscapeSequence
+                    } else {
+                        self.escape_buffer.clear();
+                        InputType::Normal
                     }
                 }
                 InputType::EscapeSequence => {
                     self.escape_buffer.push(c);
-                    match self.handle_ansi_escape_sequence(c) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            eprintln!("error while reading char: {}", e);
-                            return Err(e);
-                        }
+                    if self.escape_buffer.len() == 2 {
+                        let final_byte = c;
+                        self.handle_ansi_escape_sequence(final_byte)?;
+                        self.escape_buffer.clear();
+                        InputType::Normal
+                    } else {
+                        InputType::EscapeSequence
                     }
                 }
-                InputType::Normal => match self.handle_normal_input(c) {
-                    Ok(ReplState::Break) => break,
-                    Ok(ReplState::Continue) => continue,
-                    Err(e) => {
-                        eprintln!("error while reading char: {}", e);
-                        return Err(e);
+                InputType::Normal => match self.handle_normal_input(c)? {
+                    ReplState::Break => {
+                        let finished_line = self
+                            .get_line(self.current_line.saturating_sub(1))
+                            .map(|l| l.text.clone())
+                            .unwrap_or_default();
+                        output = Some((self.process_line)(finished_line)?);
+
+                        self.lines.push(Line::new());
+                        self.current_line = self.lines.len() - 1;
+
+                        break;
                     }
+                    ReplState::Continue => InputType::Normal,
                 },
-            }
+            };
         }
 
-        Ok(self.line.clone())
+        Ok(output.unwrap_or_default())
     }
 
-    /// Handle ANSI escape sequences.
-    fn handle_ansi_escape_sequence(&mut self, c: u8) -> Result<ReplState> {
+    /// Handles ANSI escape sequences (arrow keys).
+    fn handle_ansi_escape_sequence(&mut self, c: u8) -> Result<()> {
         match c {
-            // Get previous line from history.
             b'A' => {
-                if self.lines.len() > 0 && self.lines_pos > 0 {
-                    self.line = self.lines[self.lines_pos - 1].clone();
-                    self.lines_pos -= 1;
-                    print!("\r{}{}\x1b[K", self.prompt, self.line);
-                    if let Err(e) = self.tmanager.flush() {
-                        eprintln!("{}", e);
-                        return Err(Error::IoFlush(format!("unable to flush stdout")));
-                    };
-                    self.cursor_pos = 0;
+                // Up arrow: recall previous line in history
+                if self.current_line > 0 {
+                    self.current_line -= 1;
+                    self.redraw_current_line()?;
                 }
-                self.input_state = InputType::Normal;
-                self.escape_buffer.clear();
             }
-            // Get next line from history.
             b'B' => {
-                if self.lines.len() > 0 && (self.lines_pos + 1) < self.lines.len() {
-                    self.lines_pos += 1;
-                    self.line = self.lines[self.lines_pos].clone();
-                    print!("\r{}{}\x1b[K", self.prompt, self.line);
-                    if let Err(e) = self.tmanager.flush() {
-                        eprintln!("{}", e);
-                        return Err(Error::IoFlush(format!("unable to flush stdout")));
-                    };
-                    self.cursor_pos = 0;
+                // Down arrow: recall next line in history
+                if self.current_line + 1 < self.lines.len() {
+                    self.current_line += 1;
+                    self.redraw_current_line()?;
+                } else {
+                    self.lines.push(Line::new());
+                    self.current_line = self.lines.len() - 1;
+                    self.redraw_current_line()?;
                 }
-                self.input_state = InputType::Normal;
-                self.escape_buffer.clear();
             }
-            // Move cursor right.
             b'C' => {
-                if self.cursor_pos < self.line.chars().count() {
-                    if let Err(e) = self.tmanager.write("\x1b[1C".as_bytes()) {
-                        eprintln!("{}", e);
-                        return Err(Error::IoWrite(format!("unable to write to stdout")));
-                    }
-
-                    if let Err(e) = self.tmanager.flush() {
-                        eprintln!("{}", e);
-                        return Err(Error::IoFlush(format!("unable to flush stdout")));
-                    }
-
-                    self.cursor_pos += 1;
+                // Right arrow
+                if let Some(line) = self.lines.get_mut(self.current_line) {
+                    line.move_right();
+                    self.redraw_current_line()?;
                 }
-                self.input_state = InputType::Normal;
-                self.escape_buffer.clear();
             }
-            // Move cursor left.
             b'D' => {
-                if self.cursor_pos > 0 {
-                    if let Err(e) = self.tmanager.write("\x1b[1D".as_bytes()) {
-                        eprintln!("{}", e);
-                        return Err(Error::IoWrite(format!("unable to write to stdout")));
-                    }
-                    if let Err(e) = self.tmanager.flush() {
-                        eprintln!("{}", e);
-                        return Err(Error::IoFlush(format!("unable to flush stdout")));
-                    };
-                    self.cursor_pos -= 1;
+                // Left arrow
+                if let Some(line) = self.lines.get_mut(self.current_line) {
+                    line.move_left();
+                    self.redraw_current_line()?;
                 }
-                self.input_state = InputType::Normal;
-                self.escape_buffer.clear();
             }
             _ => {}
         }
 
-        Ok(ReplState::Continue)
+        self.escape_buffer.clear();
+        self.input_state = InputType::Normal;
+
+        Ok(())
     }
 
-    /// Handle normal input characters including printable chars and control sequences.
+    /// Handles normal character input and control characters.
     fn handle_normal_input(&mut self, c: u8) -> Result<ReplState> {
+        let current_line = self
+            .lines
+            .get_mut(self.current_line)
+            .ok_or_else(|| Error::ProcessLine("no active line".into()))?;
+
         match c {
-            // Escape character.
-            b'\x1b' => {
-                self.input_state = InputType::Escape;
-                self.escape_buffer.clear();
-            }
-            b'q' | b'\x03' => return Ok(ReplState::Break),
-            // New line.
             b'\n' | b'\r' => {
-                // Process line and print result if line is finished.
-                // Otherwise, print empty line and continue.
-                if (self.line_is_finished)(self.line.clone()) {
-                    let processed_line = match (self.process_line)(self.line.clone()) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            eprintln!("error: {}", e);
-                            return Err(e);
-                        }
-                    };
-                    println!("\r\n{}", processed_line);
-                    self.lines.push(self.line.clone());
-                    self.lines_pos += 1;
-                    self.line.clear();
+                if (self.line_is_terminated)(current_line.text.clone()) {
+                    println!();
+                    Ok(ReplState::Break)
                 } else {
-                    print!("\n\n");
-                }
-                self.cursor_pos = 0;
-                print!("{}", self.prompt);
-                if let Err(e) = self.tmanager.flush() {
-                    eprintln!("{}", e);
-                    return Err(Error::IoFlush(format!("unable to flush stdout")));
-                };
-            }
-            // Backspace.
-            b'\x08' | b'\x7f' => {
-                if self.cursor_pos > 0 {
-                    let mut byte_idx_to_remove = 0;
-                    let mut current_char_count = 0;
-                    for (idx, _) in self.line.char_indices() {
-                        if current_char_count == self.cursor_pos - 1 {
-                            byte_idx_to_remove = idx;
-                            break;
-                        }
-                        current_char_count += 1;
-                    }
-                    self.line.remove(byte_idx_to_remove);
-
-                    self.cursor_pos -= 1;
-
-                    if let Err(e) = self.tmanager.write("\x1b[1D".as_bytes()) {
-                        eprintln!("{}", e);
-                        return Err(Error::IoWrite(format!("unable to write to stdout")));
-                    }
-                    let clear_line_cmd = format!("{}\x1b[K", &self.line[byte_idx_to_remove..]);
-                    if let Err(e) = self.tmanager.write(clear_line_cmd.as_bytes()) {
-                        eprintln!("{}", e);
-                        return Err(Error::IoWrite(format!("unable to write to stdout")));
-                    }
-                    let chars_after_cursor = self.line.chars().skip(self.cursor_pos).count();
-                    if chars_after_cursor > 0 {
-                        let move_cursor_left = format!("\x1b[{}D", chars_after_cursor);
-                        if let Err(e) = self.tmanager.write(move_cursor_left.as_bytes()) {
-                            eprintln!("{}", e);
-                            return Err(Error::IoWrite(format!("unable to write to stdout")));
-                        }
-                    }
-                    if let Err(e) = self.tmanager.flush() {
-                        eprintln!("{}", e);
-                        return Err(Error::IoFlush(format!("unable to flush stdout")));
-                    };
+                    current_line.insert_char('\n');
+                    Ok(ReplState::Continue)
                 }
             }
-            // Letter, number, symbol.
-            _ => {
-                if let Some(char_byte) = str::from_utf8(&[c]).ok().and_then(|s| s.chars().next()) {
-                    if char_byte.is_ascii_graphic()
-                        || (char_byte.is_whitespace() && char_byte != '\t')
-                    {
-                        if self.cursor_pos == self.line.chars().count() {
-                            print!("{}", char_byte);
-                            self.line.push(char_byte);
-                        } else {
-                            let mut byte_idx = 0;
-                            for (idx, _) in self.line.char_indices().take(self.cursor_pos) {
-                                byte_idx = idx;
-                            }
-                            self.line.insert(byte_idx, char_byte);
-                            let move_cursor_left = format!("\x1b[{}D", self.cursor_pos);
-                            if let Err(e) = self.tmanager.write(move_cursor_left.as_bytes()) {
-                                eprintln!("{}", e);
-                                return Err(Error::IoWrite(format!("unable to write to stdout")));
-                            }
-                            let clear_line_cmd = format!("{}\x1b[K", self.line);
-                            if let Err(e) = self.tmanager.write(clear_line_cmd.as_bytes()) {
-                                eprintln!("{}", e);
-                                return Err(Error::IoWrite(format!("unable to write to stdout")));
-                            }
-                            let chars_after_new_cursor =
-                                self.line.chars().skip(self.cursor_pos + 1).count();
-                            if chars_after_new_cursor > 0 {
-                                let move_cursor_left = format!("\x1b[{}D", chars_after_new_cursor);
-                                if let Err(e) = self.tmanager.write(move_cursor_left.as_bytes()) {
-                                    eprintln!("{}", e);
-                                    return Err(Error::IoWrite(format!(
-                                        "unable to write to stdout"
-                                    )));
-                                }
-                            }
-                        }
-                        self.cursor_pos += 1;
-                        if let Err(e) = self.tmanager.flush() {
-                            eprintln!("{}", e);
-                            return Err(Error::IoFlush(format!("unable to flush stdout")));
-                        };
-                    }
-                }
+            0x7F => {
+                // Backspace
+                current_line.backspace();
+                self.redraw_current_line()?;
+                Ok(ReplState::Continue)
+            }
+            0x01 => {
+                // Ctrl-A = move to line start
+                current_line.cursor_pos = 0;
+                self.redraw_current_line()?;
+                Ok(ReplState::Continue)
+            }
+            0x05 => {
+                // Ctrl-E = move to line end
+                current_line.cursor_pos = current_line.text.len();
+                self.redraw_current_line()?;
+                Ok(ReplState::Continue)
+            }
+            c if c.is_ascii_control() => Ok(ReplState::Continue),
+            c => {
+                current_line.insert_char(c as char);
+                self.redraw_current_line()?;
+                Ok(ReplState::Continue)
             }
         }
+    }
 
-        Ok(ReplState::Continue)
+    /// Redraws the current line with proper cursor positioning.
+    fn redraw_current_line(&mut self) -> Result<()> {
+        let line = self
+            .lines
+            .get(self.current_line)
+            .ok_or_else(|| Error::ProcessLine("no active line for redraw".into()))?;
+
+        print!("\r{}{}\x1b[K", self.prompt, line.text);
+        let right_after_prompt = self.prompt.len() + line.cursor_pos;
+        let total_len = self.prompt.len() + line.text.len();
+        if total_len > right_after_prompt {
+            print!("\x1b[{}D", total_len - right_after_prompt);
+        }
+
+        self.tmanager
+            .flush()
+            .map_err(|_| Error::IoFlush("unable to flush stdout".into()))?;
+        Ok(())
     }
 }

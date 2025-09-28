@@ -64,12 +64,10 @@ fn main() -> Result<(), ()> {
 
     loop {
         repl.print_prompt();
-        match repl.get_line() {
-            Ok(l) => println!("{}", l),
-            Err(e) => {
+        repl.process_input()
+            .inspect(|l| println!("{}", l))
+            .map_err(|e| {
                 eprintln!("error: {}", e);
-                return Err(());
-            }
-        }
+            })?;
     }
 }
