@@ -10,10 +10,10 @@ use term_manager::TermManager;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Function type for processing input lines.
-pub type ProcessFunc = Box<dyn FnMut(String) -> Result<String>>;
+pub type ProcessLineFunc = Box<dyn FnMut(String) -> Result<String>>;
 
 /// Function type for determining if a line is complete.
-pub type TerminatedLineFunc = Box<dyn FnMut(String) -> bool>;
+pub type LineCompletionFunc = Box<dyn FnMut(String) -> bool>;
 
 /// Error type for REPL operations.
 #[derive(Debug)]
@@ -35,21 +35,6 @@ impl Display for Error {
             Error::ProcessLine(s) => write!(f, "Process Line error: {}", s),
         }
     }
-}
-
-/// Internal state for REPL operation flow.
-#[derive(Copy, Clone, Debug)]
-enum ReplState {
-    Continue,
-    Break,
-}
-
-/// Type of input being processed by the REPL.
-#[derive(Copy, Clone, Debug)]
-pub enum InputType {
-    Normal,
-    Escape,
-    EscapeSequence,
 }
 
 /// Represents a single line of input with cursor position.
@@ -108,6 +93,21 @@ impl Display for Line {
     }
 }
 
+/// Type of input being processed by the REPL.
+#[derive(Copy, Clone, Debug)]
+enum InputType {
+    Normal,
+    Escape,
+    EscapeSequence,
+}
+
+/// Internal state for REPL operation flow.
+#[derive(Copy, Clone, Debug)]
+enum ReplState {
+    Continue,
+    Break,
+}
+
 /// Interactive Read-Eval-Print Loop implementation.
 pub struct Repl {
     tmanager: TermManager,
@@ -115,8 +115,8 @@ pub struct Repl {
     current_line: usize,
     escape_buffer: Vec<u8>,
     input_state: InputType,
-    process_line: ProcessFunc,
-    line_is_terminated: TerminatedLineFunc,
+    process_line: ProcessLineFunc,
+    is_line_complete: LineCompletionFunc,
     prompt: String,
     banner: String,
     welcome_msg: String,
@@ -136,8 +136,8 @@ impl Repl {
         prompt: String,
         banner: String,
         welcome_msg: String,
-        process_line: ProcessFunc,
-        line_is_terminated: TerminatedLineFunc,
+        process_line: ProcessLineFunc,
+        line_is_terminated: LineCompletionFunc,
     ) -> Result<Self> {
         let tmanager = TermManager::new().or_else(|e| {
             let msg = format!("failed to initialized Repl: {}", e);
@@ -156,7 +156,7 @@ impl Repl {
             escape_buffer,
             input_state,
             process_line,
-            line_is_terminated,
+            is_line_complete: line_is_terminated,
             prompt,
             banner,
             welcome_msg,
@@ -205,9 +205,9 @@ impl Repl {
                 }
                 InputType::EscapeSequence => {
                     self.escape_buffer.push(c);
-                    if self.escape_buffer.len() == 2 {
+                    if self.escape_buffer.len() == 2 && self.escape_buffer[0] == b'[' {
                         let final_byte = c;
-                        self.handle_ansi_escape_sequence(final_byte)?;
+                        self.handle_escape_sequence(final_byte)?;
                         self.escape_buffer.clear();
                         InputType::Normal
                     } else {
@@ -227,7 +227,7 @@ impl Repl {
 
                         break;
                     }
-                    ReplState::Continue => InputType::Normal,
+                    ReplState::Continue => self.input_state,
                 },
             };
         }
@@ -236,7 +236,7 @@ impl Repl {
     }
 
     /// Handles ANSI escape sequences (arrow keys).
-    fn handle_ansi_escape_sequence(&mut self, c: u8) -> Result<()> {
+    fn handle_escape_sequence(&mut self, c: u8) -> Result<()> {
         match c {
             b'A' => {
                 // Up arrow: recall previous line in history
@@ -288,7 +288,8 @@ impl Repl {
 
         match c {
             b'\n' | b'\r' => {
-                if (self.line_is_terminated)(current_line.text.clone()) {
+                // Newline/enter line
+                if (self.is_line_complete)(current_line.text.clone()) {
                     println!();
                     Ok(ReplState::Break)
                 } else {
@@ -312,6 +313,11 @@ impl Repl {
                 // Ctrl-E = move to line end
                 current_line.cursor_pos = current_line.text.len();
                 self.redraw_current_line()?;
+                Ok(ReplState::Continue)
+            }
+            0x1B => {
+                // Escape
+                self.input_state = InputType::Escape;
                 Ok(ReplState::Continue)
             }
             c if c.is_ascii_control() => Ok(ReplState::Continue),

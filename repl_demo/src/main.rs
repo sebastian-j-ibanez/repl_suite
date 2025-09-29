@@ -2,15 +2,15 @@
 // Author: Sebastian Ibanez
 // Created: 2025-08-29
 
-use repl_lib::{ProcessFunc, Repl, TerminatedLineFunc};
+use repl_lib::{LineCompletionFunc, ProcessLineFunc, Repl};
 
 /// Return line.
-fn process_line() -> ProcessFunc {
+fn process_line() -> ProcessLineFunc {
     Box::new(|line: String| Ok(line))
 }
 
 /// Return `true` if line is larger than 0.
-fn line_is_finished() -> TerminatedLineFunc {
+fn line_is_finished() -> LineCompletionFunc {
     Box::new(|line: String| {
         let expression = line.trim();
         let mut open_paren = 0;

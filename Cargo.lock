@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "repl_lib"
-version = "0.1.2"
+version = "0.2.1"
 dependencies = [
  "term_manager 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
