@@ -217,7 +217,7 @@ impl Repl {
                 InputType::Normal => match self.handle_normal_input(c)? {
                     ReplState::Break => {
                         let finished_line = self
-                            .get_line(self.current_line.saturating_sub(1))
+                            .get_line(self.current_line)
                             .map(|l| l.text.clone())
                             .unwrap_or_default();
                         output = Some((self.process_line)(finished_line)?);
