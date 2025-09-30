@@ -1,4 +1,4 @@
-# term_manager
+# repl_lib
 ![Crates.io Version](https://img.shields.io/crates/v/repl_lib)
 ![Crates.io Total Downloads](https://img.shields.io/crates/d/repl_lib?color=blue)
 ![GitHub License](https://img.shields.io/github/license/sebastian-j-ibanez/repl_suite)
