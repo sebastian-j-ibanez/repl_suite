@@ -15,26 +15,45 @@ pub type ProcessLineFunc = Box<dyn FnMut(String) -> Result<String>>;
 /// Function type for determining if a line is complete.
 pub type LineCompletionFunc = Box<dyn FnMut(String) -> bool>;
 
-/// Error type for REPL operations.
+/// Repl error.
 #[derive(Debug)]
 pub enum Error {
-    InitFail(String),
-    IoFlush(String),
-    IoRead(String),
-    IoWrite(String),
-    ProcessLine(String),
+    Internal(InternalError),
+    User(UserError),
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::InitFail(s) => write!(f, "initialization failed: {}", s),
-            Error::IoFlush(s) => write!(f, "IO flush error: {}", s),
-            Error::IoRead(s) => write!(f, "IO read error: {}", s),
-            Error::IoWrite(s) => write!(f, "IO write error: {}", s),
-            Error::ProcessLine(s) => write!(f, "Process Line error: {}", s),
+            Self::Internal(e) => write!(f, "{}", e),
+            Self::User(e) => write!(f, "{}", e.error),
         }
     }
+}
+
+/// Error type for REPL operations.
+#[derive(Debug)]
+pub enum InternalError {
+    InitFail(String),
+    IoFlush(String),
+    IoRead(String),
+    IoWrite(String),
+}
+
+impl Display for InternalError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InternalError::InitFail(s) => write!(f, "initialization failed: {}", s),
+            InternalError::IoFlush(s) => write!(f, "IO flush error: {}", s),
+            InternalError::IoRead(s) => write!(f, "IO read error: {}", s),
+            InternalError::IoWrite(s) => write!(f, "IO write error: {}", s),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct UserError {
+    pub error: String,
 }
 
 /// Represents a single line of input with cursor position.
@@ -141,7 +160,7 @@ impl Repl {
     ) -> Result<Self> {
         let tmanager = TermManager::new().or_else(|e| {
             let msg = format!("failed to initialized Repl: {}", e);
-            Err(Error::InitFail(msg))
+            Err(Error::Internal(InternalError::InitFail(msg)))
         })?;
         let mut lines: Vec<Line> = Vec::new();
         lines.push(Line::new());
@@ -180,17 +199,20 @@ impl Repl {
 
     /// Read and process input until a complete line is entered.
     pub fn process_input(&mut self) -> Result<String> {
-        self.tmanager
-            .flush()
-            .map_err(|_| Error::IoFlush("unable to flush stdout".into()))?;
+        self.tmanager.flush().map_err(|_| {
+            Error::Internal(InternalError::IoFlush("unable to flush stdout".into()))
+        })?;
 
         let mut output: Option<String> = None;
 
         loop {
             let mut buf = [0u8; 1];
-            self.tmanager
-                .read(&mut buf)
-                .map_err(|e| Error::IoRead(format!("error reading from stdin: {}", e)))?;
+            self.tmanager.read(&mut buf).map_err(|e| {
+                Error::Internal(InternalError::IoRead(format!(
+                    "error reading from stdin: {}",
+                    e
+                )))
+            })?;
             let c = buf[0];
 
             self.input_state = match self.input_state {
@@ -281,10 +303,11 @@ impl Repl {
 
     /// Handles normal character input and control characters.
     fn handle_normal_input(&mut self, c: u8) -> Result<ReplState> {
-        let current_line = self
-            .lines
-            .get_mut(self.current_line)
-            .ok_or_else(|| Error::ProcessLine("no active line".into()))?;
+        let current_line = self.lines.get_mut(self.current_line).ok_or_else(|| {
+            Error::User(UserError {
+                error: "no active line".into(),
+            })
+        })?;
 
         match c {
             b'\n' | b'\r' => {
@@ -331,10 +354,9 @@ impl Repl {
 
     /// Redraws the current line with proper cursor positioning.
     fn redraw_current_line(&mut self) -> Result<()> {
-        let line = self
-            .lines
-            .get(self.current_line)
-            .ok_or_else(|| Error::ProcessLine("no active line for redraw".into()))?;
+        let line = self.lines.get(self.current_line).ok_or_else(|| {
+            Error::Internal(InternalError::IoWrite("no active line for redraw".into()))
+        })?;
 
         print!("\r{}{}\x1b[K", self.prompt, line.text);
         let right_after_prompt = self.prompt.len() + line.cursor_pos;
@@ -343,9 +365,9 @@ impl Repl {
             print!("\x1b[{}D", total_len - right_after_prompt);
         }
 
-        self.tmanager
-            .flush()
-            .map_err(|_| Error::IoFlush("unable to flush stdout".into()))?;
+        self.tmanager.flush().map_err(|_| {
+            Error::Internal(InternalError::IoFlush("unable to flush stdout".into()))
+        })?;
         Ok(())
     }
 }
