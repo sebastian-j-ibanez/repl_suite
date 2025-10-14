@@ -66,8 +66,14 @@ fn main() -> Result<(), ()> {
         repl.print_prompt();
         repl.process_input()
             .inspect(|l| println!("{}", l))
-            .map_err(|e| {
-                eprintln!("error: {}", e);
+            .map_err(|e| match e {
+                // repl_lib errors are either:
+                // Internal - This means that the error was created by repl_lib code.
+                // User - This means that the error was created by your process line function.
+                //
+                // This gives you the flexibility to handle user and library errors differently.
+                repl_lib::Error::Internal(e) => eprintln!("repl_lib error: {}", e),
+                repl_lib::Error::User(e) => eprintln!("error: {}", e.error),
             })?;
     }
 }
