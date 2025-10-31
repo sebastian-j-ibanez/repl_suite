@@ -242,10 +242,9 @@ impl Repl {
                             .get_line(self.current_line)
                             .map(|l| l.text.clone())
                             .unwrap_or_default();
-                        output = Some((self.process_line)(finished_line)?);
-
                         self.lines.push(Line::new());
                         self.current_line = self.lines.len() - 1;
+                        output = Some((self.process_line)(finished_line)?);
 
                         break;
                     }
